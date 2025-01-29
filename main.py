@@ -37,7 +37,7 @@ else:
 # STEP 2: OCR each incoming PDF
 # ---------------------------------------------------------------
 # In practice, you may have a folder containing multiple PDFs.
-document_folder = "./data/documents_to_check"
+document_folder = "./data/documents_to_check/augmented_documents"
 document_paths = [os.path.join(document_folder, fname)
                   for fname in os.listdir(document_folder)
                   if fname.lower().endswith(".pdf")]
@@ -54,7 +54,7 @@ def similarity_ratio(text_a, text_b):
     return SequenceMatcher(None, text_a, text_b).ratio()
 
 
-SIMILARITY_THRESHOLD = 0.95  # Adjust this value based on experimentation
+SIMILARITY_THRESHOLD = 0.98  # Adjust this value based on experimentation
 
 # ---------------------------------------------------------------
 # STEP 4: Flag documents that differ significantly
