@@ -1,12 +1,13 @@
 import os
 import cv2
+from numpy.random import random, randint
 from pdf2image import convert_from_path
 from augraphy import *
 from PIL import Image
 import concurrent.futures
 
 # Define paths
-base_pdf_path = "data/documents_to_check/base_document.pdf"
+base_pdf_path = "data/base_document.pdf"
 output_dir = "data/documents_to_check/augmented_documents"
 
 
@@ -20,33 +21,19 @@ def simulate_scanned_document_pipeline() -> AugraphyPipeline:
     with mild artifacts like noise, drum lines, brightness changes, and compression.
     """
     return AugraphyPipeline([
-        # 1. Simulate mild 'dirt' or artifacts from the scanning drum/rollers
-        DirtyDrum(
-            line_width_range=(2, 6),
-            line_concentration=0.05,
-            direction=1,  # 0 = horizontal, 1 = vertical, 2 = both
-        ),
-
         # 2. Add subtle noise to emulate sensor/scan noise
-        SubtleNoise(
-            subtle_range=5,
-            p=0.5
-        ),
+        # SubtleNoise(p=0.5),
 
         # 3. Mildly change brightness/contrast in a texturized way
-        BrightnessTexturize(
-            texturize_range=(0.8, 0.9),
-            deviation=0.05
-        ),
+        # BrightnessTexturize(texturize_range=(0.8, 0.9),deviation=0.05, p=0.5),
 
         # 4. Slight blur to mimic a non-perfect scan focus
         BadPhotoCopy(p=0.5),
 
         # 5. Compress the image to replicate typical scan compression
         #    or scanning software's JPEG output
-        Jpeg(
-            quality_range=(30, 60)
-        )
+        # Jpeg(quality_range=(30, 60), p=0.5),
+        # LowInkPeriodicLines(p=0.5),
     ])
 
 
@@ -62,7 +49,7 @@ def augment_image(image_path, pipeline):
 
 
 # Function to create 200 augmented copies
-def create_augmented_documents(base_pdf, output_dir, num_copies=200):
+def create_augmented_documents(base_pdf, output_dir, thread_id, num_copies=200):
     """
     Generates augmented copies of a base PDF document.
     """
@@ -78,7 +65,8 @@ def create_augmented_documents(base_pdf, output_dir, num_copies=200):
 
             for page_num, page_image in enumerate(images):
                 # Save the page image temporarily as a PNG for OpenCV compatibility
-                temp_image_path = f"temp_page_{page_num}.png"
+                page_id = randint(10000)
+                temp_image_path = f"temp_page_{page_id}.png"
                 page_image.save(temp_image_path)
 
                 # Apply Augraphy to the page
@@ -92,7 +80,8 @@ def create_augmented_documents(base_pdf, output_dir, num_copies=200):
                 os.remove(temp_image_path)
 
             # Save all augmented pages into a single PDF
-            output_pdf_path = os.path.join(output_dir, f"augmented_document_{i:03d}.pdf")
+            pdf_num = i * (thread_id+1)
+            output_pdf_path = os.path.join(output_dir, f"augmented_document_{pdf_num:03d}.pdf")
             augmented_images[0].save(output_pdf_path, save_all=True, append_images=augmented_images[1:])
 
             print(f"Augmented document {i}/{num_copies} saved to: {output_pdf_path}")
@@ -102,7 +91,7 @@ def create_augmented_documents(base_pdf, output_dir, num_copies=200):
 
 
 # Number of augmented copies per thread (split evenly)
-NUM_COPIES = 200
+NUM_COPIES = 100
 NUM_THREADS = 4
 copies_per_thread = NUM_COPIES // NUM_THREADS
 
@@ -111,7 +100,7 @@ copies_per_thread = NUM_COPIES // NUM_THREADS
 def worker(thread_id):
     """Each thread will generate a portion of the total augmented copies."""
     print(f"Thread {thread_id} started")
-    create_augmented_documents(base_pdf_path, output_dir, num_copies=copies_per_thread)
+    create_augmented_documents(base_pdf_path, output_dir, thread_id, num_copies=copies_per_thread)
     print(f"Thread {thread_id} completed")
 
 
