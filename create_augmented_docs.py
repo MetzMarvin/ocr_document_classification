@@ -17,23 +17,29 @@ def make_pipeline() -> AugraphyPipeline:
 
 def simulate_scanned_document_pipeline() -> AugraphyPipeline:
     """
-    Returns a pipeline configured to simulate a typical scanned printed document
-    with mild artifacts like noise, drum lines, brightness changes, and compression.
+    Returns a pipeline configured to simulate a subtle photocopying effect.
+    The parameters are tuned to ensure that the OCR can still read most of the document.
     """
+    subtle_badphotocopy = BadPhotoCopy(
+        noise_mask=None,
+        noise_type=-1,
+        noise_side="random",
+        noise_iteration=(1, 2),
+        noise_size=(1, 2),  # Reduced maximum noise size (from default (1, 3))
+        noise_value=(32, 80),  # Lower maximum noise value (from default (32, 128))
+        noise_sparsity=(0.1, 0.5),  # Narrower sparsity range for less intense noise
+        noise_concentration=(0.1, 0.5),  # Narrower concentration range for a subtler effect
+        blur_noise=-1,
+        blur_noise_kernel=(3, 3),  # Smaller kernel for milder blur
+        wave_pattern=-1,
+        edge_effect=-1,
+        numba_jit=1,
+        p=1  # Always apply the augmentation
+    )
     return AugraphyPipeline([
-        # 2. Add subtle noise to emulate sensor/scan noise
-        # SubtleNoise(p=0.5),
+        # Adjust the BadPhotoCopy parameters to be more subtle:
 
-        # 3. Mildly change brightness/contrast in a texturized way
-        # BrightnessTexturize(texturize_range=(0.8, 0.9),deviation=0.05, p=0.5),
-
-        # 4. Slight blur to mimic a non-perfect scan focus
-        BadPhotoCopy(p=0.5),
-
-        # 5. Compress the image to replicate typical scan compression
-        #    or scanning software's JPEG output
-        # Jpeg(quality_range=(30, 60), p=0.5),
-        # LowInkPeriodicLines(p=0.5),
+        subtle_badphotocopy,
     ])
 
 
@@ -54,10 +60,14 @@ def create_augmented_documents(base_pdf, output_dir, thread_id, num_copies=200):
     Generates augmented copies of a base PDF document.
     """
     # Define the Augraphy pipeline
-    pipeline = simulate_scanned_document_pipeline()
-    # Convert the PDF into images (one per page)
-    images = convert_from_path(base_pdf)
+    try:
 
+        pipeline = simulate_scanned_document_pipeline()
+        # Convert the PDF into images (one per page)
+
+        images = convert_from_path(base_pdf)
+    except Exception as e:
+        print(e)
     # Process each copy
     for i in range(1, num_copies + 1):
         try:
@@ -92,7 +102,7 @@ def create_augmented_documents(base_pdf, output_dir, thread_id, num_copies=200):
 
 # Number of augmented copies per thread (split evenly)
 NUM_COPIES = 100
-NUM_THREADS = 4
+NUM_THREADS = 8
 copies_per_thread = NUM_COPIES // NUM_THREADS
 
 

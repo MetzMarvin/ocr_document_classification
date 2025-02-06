@@ -1,10 +1,13 @@
 import os
 import shutil
+
+import numpy as np
 import pytesseract
 from pdf2image import convert_from_path
 from difflib import SequenceMatcher
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
+import easyocr
 
 # ---------------------------------------------------------------
 # STEP 1: Obtain and store baseline text
@@ -14,16 +17,33 @@ BASELINE_PDF_PATH = "data/base_document.pdf"
 BASELINE_TEXT_FILE = "baseline_text.txt"
 
 
+
+
+
 def extract_text_from_pdf(pdf_path):
     """
-    Converts a PDF file into text using Tesseract OCR.
+    Converts a PDF file into text using EasyOCR.
+    Each page is processed individually, and the recognized text from
+    each page is concatenated into a single string.
     """
     text = ""
-    images = convert_from_path(pdf_path)  # Convert PDF to images
+    # Convert PDF pages to images (PIL images)
+    images = convert_from_path(pdf_path)
+
+    # Initialize EasyOCR reader for German (adjust language list as needed)
+    # GPU usage is enabled by default if available.
+    reader = easyocr.Reader(['de'], gpu=False)
 
     for page_num, img in enumerate(images, start=1):
-        # Perform OCR on each page
-        page_text = pytesseract.image_to_string(img, lang="deu")
+        # Convert the PIL image to a NumPy array.
+        # pdf2image typically returns an image in RGB format.
+        img_np = np.array(img)
+
+        # Use EasyOCR's readtext; setting detail=0 returns only the recognized text.
+        page_texts = reader.readtext(img_np, detail=0)
+
+        # Join the list of text strings into one block.
+        page_text = "\n".join(page_texts)
         text += f"--- Page {page_num} ---\n{page_text}\n"
 
     return text
@@ -45,7 +65,7 @@ def load_baseline_text():
 # STEP 2: Get the list of PDF documents to process
 # ---------------------------------------------------------------
 DOCUMENT_FOLDER = "./data/documents_to_check/augmented_documents"
-SIMILARITY_THRESHOLD = 0.95  # Adjust based on testing
+SIMILARITY_THRESHOLD = 0.98  # Adjust based on testing
 
 document_paths = [
     os.path.join(DOCUMENT_FOLDER, fname)
@@ -79,10 +99,14 @@ def process_document(doc_path, baseline_text, flagged_folder):
     """
     Extracts text from a document, compares with the baseline, and copies it if flagged.
     """
+    print(f"Checking {doc_path}...")
     doc_text = extract_text_from_pdf(doc_path)
     ratio = similarity_ratio(baseline_text, doc_text)
+    print(f"Checked {doc_path}. Ratio {ratio}")
+
 
     if ratio < SIMILARITY_THRESHOLD:
+        print(f"DocText: {doc_text}")
         copy_flagged_document(doc_path, flagged_folder, ratio)  # Copy immediately when flagged
         return doc_path, ratio  # Return only flagged documents
     return None
